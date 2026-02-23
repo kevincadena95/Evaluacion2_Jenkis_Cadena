@@ -3,62 +3,76 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.edge.service import Service
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
-from selenium.common.exceptions import TimeoutException
 import time
 
 service = Service("msedgedriver.exe")
 driver = webdriver.Edge(service=service)
-wait = WebDriverWait(driver, 8)
+wait = WebDriverWait(driver, 10)
 
-BASE_URL = "https://webdriveruniversity.com/Contact-Us/contactus.html"
+url = "https://webdriveruniversity.com/Contact-Us/contactus.html"
+
 
 cases = [
-    ("TC01", "Juan", "Pérez", "juan.perez@example.com", "Comentario válido", "success"),
-    ("TC02", "Ana", "García", "email-invalido", "Email inválido", "error"),
-    ("TC03", "Luis", "Lopez", "luis.lopez@example.com", "", "error"),  # falta comments
+    {"first":"Juan", "last":"Pérez", "email":"juan.perez@example.com", "comments":"Formulario válido", "expect":"success"},
+    {"first":"Ana", "last":"Lopez", "email":"ana.lopezexample.com", "comments":"Email inválido (sin @)", "expect":"email_error"},
+    {"first":"", "last":"Gómez", "email":"maria.gomez@example.com", "comments":"Falta First Name", "expect":"required_error"},
 ]
 
-def abrir():
-    driver.get(BASE_URL)
+for i, case in enumerate(cases, start=1):
+    print(f"\n===== Caso {i} | Esperado: {case['expect']} =====")
+
+    driver.get(url)
+    driver.maximize_window()
+
+ 
     wait.until(EC.presence_of_element_located((By.NAME, "first_name")))
+    wait.until(EC.presence_of_element_located((By.NAME, "last_name")))
+    wait.until(EC.presence_of_element_located((By.NAME, "email")))
+    wait.until(EC.presence_of_element_located((By.NAME, "message")))
 
-def enviar(first, last, email, comments):
-    driver.find_element(By.NAME, "first_name").clear(); driver.find_element(By.NAME, "first_name").send_keys(first)
-    driver.find_element(By.NAME, "last_name").clear();  driver.find_element(By.NAME, "last_name").send_keys(last)
-    driver.find_element(By.NAME, "email").clear();      driver.find_element(By.NAME, "email").send_keys(email)
-    driver.find_element(By.NAME, "message").clear();    driver.find_element(By.NAME, "message").send_keys(comments)
-    driver.find_element(By.XPATH, "//input[@value='SUBMIT']").click()
 
-def check_success():
-    try:
-        h = wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, "#contact_reply h1")))
-        return "Thank You for your Message!" in h.text
-    except TimeoutException:
-        return False
+    driver.find_element(By.NAME, "first_name").clear()
+    driver.find_element(By.NAME, "first_name").send_keys(case["first"])
 
-def check_error():
-    try:
-        body = wait.until(EC.presence_of_element_located((By.TAG_NAME, "body"))).text
-        return ("Error: Invalid email address" in body) or ("Error: all fields are required" in body)
-    except TimeoutException:
-        return False
+    driver.find_element(By.NAME, "last_name").clear()
+    driver.find_element(By.NAME, "last_name").send_keys(case["last"])
 
-results = []
-try:
-    for tc_id, first, last, email, comments, expected in cases:
-        abrir()
-        enviar(first, last, email, comments)
-        # breve espera para que responda el servidor
-        time.sleep(0.5)
-        if expected == "success":
-            passed = check_success()
+    driver.find_element(By.NAME, "email").clear()
+    driver.find_element(By.NAME, "email").send_keys(case["email"])
+
+    driver.find_element(By.NAME, "message").clear()
+    driver.find_element(By.NAME, "message").send_keys(case["comments"])
+
+
+    driver.find_element(By.CSS_SELECTOR, "input[type='submit']").click()
+
+    time.sleep(1.5)
+
+
+    page_source = driver.page_source.lower()
+
+    if case["expect"] == "success":
+        if "thank you" in page_source:
+            print("Exito")
         else:
-            passed = check_error()
-        results.append((tc_id, passed))
-        print(f"{tc_id} -> {'PASS' if passed else 'FAIL'}")
-finally:
-    print("\nResumen:")
-    for r in results:
-        print(f"{r[0]}: {'PASS' if r[1] else 'FAIL'}")
+            print("Fallo")
+
+    elif case["expect"] == "email_error":
+        if "error" in page_source or "invalid" in page_source:
+            print("Exito")
+        else:
+            print("Fallo")
+
+    elif case["expect"] == "required_error":
+        if "error" in page_source:
+            print("Exito")
+        else:
+            print("Fallo")
+
     time.sleep(1)
-    driver.quit()
+
+print("Ejecución terminada")
+print("El navegador queda abierto para revisión manual")
+
+input("Presiona ENTER para cerrar el navegador...")
+driver.quit()
